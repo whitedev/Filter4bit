@@ -40,15 +40,30 @@
 			
 			sampler2D _MainTex;
 			float _Resolution;
+			sampler3D _DitherMaskLOD;
 
-			fixed4 frag (v2f i) : SV_Target
+			fixed4 frag(v2f i) : SV_Target
 			{
 				float2 resolution = _ScreenParams.xy / _Resolution;
 				i.uv = floor(i.uv * resolution) / resolution;
 				float3 col = tex2D(_MainTex, i.uv).rgb;
-				
-				float3 ret = float3(col.r > 0.333, col.g > 0.333, col.b > 0.333);
-				if ((col.r + col.g + col.b) / 3. < 0.5) return float4(ret / 2., 0.);
+
+				float3 ret = float3(col.r > 0.5, col.g > 0.5, col.b > 0.5);
+				float retValue = (ret.r + ret.g + ret.b) / 3.;
+				if (retValue < 0.01 || retValue > 0.99) ret = float3(0.5, 0.5, 0.5);
+
+				float value = (col.r + col.g + col.b) / 3.;
+
+				if (value < 0.5)
+				{
+					float tone = tex3D(_DitherMaskLOD, float3(i.uv * resolution / 4.0, value * 2. * 0.9375)).a;
+					return float4(ret / 2. * tone, 0.);
+				}
+				else
+				{
+					float tone = tex3D(_DitherMaskLOD, float3(i.uv * resolution / 4.0, (2. - value * 2.) * 0.9375)).a;
+					return float4(lerp(1., ret, tone), 0.);
+				}
 				return float4(ret, 0.);
 			}
 			ENDCG
